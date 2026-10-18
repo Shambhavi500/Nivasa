@@ -142,6 +142,7 @@ class ListingOut(BaseModel):
     contact_name: str | None
     contact_phone: str | None
     contact_email: str | None
+    contact_website: str | None = None
     is_demo: bool
     verification_status: str
     verified_on: date | None
@@ -159,6 +160,12 @@ class PoiOut(BaseModel):
     pure_veg: bool | None = None
     jain: bool | None = None
     opening_hours: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    website: str | None = None
+    address: str | None = None
+    details: dict[str, str] | None = None
+    contact_source: str | None = None
 
 
 class StationOut(BaseModel):
@@ -255,6 +262,7 @@ class FoodOption(BaseModel):
 
 
 class NearbyPlace(BaseModel):
+    poi_id: str | None = None
     name: str | None
     distance_km: float
     lat: float

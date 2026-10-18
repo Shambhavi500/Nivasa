@@ -2,6 +2,7 @@ import L from 'leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import { api } from '../lib/api'
+import { openPlace } from '../lib/placeSheet'
 import { HIDDEN_REASON_LABELS, inr, toneColor } from '../lib/format'
 import type { HiddenListing, MatchResult, Poi, ResolvedDestination, Transit } from '../lib/types'
 import { useTransit } from '../lib/useReference'
@@ -73,8 +74,9 @@ export function PoiLayer({ categories, enabled, minZoom = 14 }: { categories: st
     <>
       {zoomedOut && <ZoomHint zoom={minZoom} />}
       {pois.map((p) => (
-        <Marker key={p.id} position={[p.lat, p.lng]} icon={placeIcon(p.category, p.category === 'mess' ? 24 : 22)} zIndexOffset={-500}>
-          <Tooltip direction="top">{signFor(p.category).label}{p.name ? `: ${p.name}` : ''}</Tooltip>
+        <Marker key={p.id} position={[p.lat, p.lng]} icon={placeIcon(p.category, p.category === 'mess' ? 24 : 22)} zIndexOffset={-500}
+          title={`${signFor(p.category).label}${p.name ? `: ${p.name}` : ''}. Click for details`} eventHandlers={{ click: () => openPlace(p) }}>
+          <Tooltip direction="top">{signFor(p.category).label}{p.name ? `: ${p.name}` : ''}{p.phone ? ' · has phone' : ''}<br /><span className="opacity-75">Click for details</span></Tooltip>
         </Marker>
       ))}
     </>
@@ -164,7 +166,8 @@ export function ResultsMap({ destination, results, hidden, selectedId, onSelect,
           <>
             <Polyline positions={[[selected.listing.lat, selected.listing.lng], [bestMess.lat, bestMess.lng]]} interactive={false}
               pathOptions={{ className: 'nv-route-food', weight: 3, dashArray: '2 6' }} />
-            <Marker position={[bestMess.lat, bestMess.lng]} icon={placeIcon('mess', 32, true)} zIndexOffset={900}>
+            <Marker position={[bestMess.lat, bestMess.lng]} icon={placeIcon('mess', 32, true)} zIndexOffset={900}
+              eventHandlers={{ click: () => bestMess.poi_id && openPlace({ id: bestMess.poi_id, category: 'mess', name: bestMess.name, lat: bestMess.lat!, lng: bestMess.lng!, partial: true }) }}>
               <Tooltip permanent direction="top" className="nv-tip-quiet">Best mess: {bestMess.name}</Tooltip>
             </Marker>
           </>

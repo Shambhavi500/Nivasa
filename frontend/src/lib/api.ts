@@ -69,4 +69,5 @@ export const api = {
       `/pois?south=${b.south}&west=${b.west}&north=${b.north}&east=${b.east}&categories=${categories.join(',')}`,
       { signal },
     ),
+  poi: (id: string) => request<Poi>(`/pois/${encodeURIComponent(id)}`),
 }

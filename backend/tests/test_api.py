@@ -114,3 +114,30 @@ def test_geocode_falls_back_to_college_list(client):
     r = client.get("/api/geocode", params={"q": "fergusson"})
     assert r.status_code == 200 and r.json()[0]["short_label"] == "Fergusson"
     assert client.get("/api/geocode", params={"q": "ab"}).status_code == 422
+
+
+def test_poi_detail_has_researched_hospital_contacts(client):
+    # Jehangir Hospital (OSM w331500153): contacts checked against the hospital's own website.
+    p = client.get("/api/pois/w331500153").json()
+    assert p["category"] == "hospital" and p["phone"] and p["email"] == "info@jehangirhospital.com"
+    assert p["details"]["emergency_phone"] and "official website" in p["contact_source"]
+    assert client.get("/api/pois/n0").status_code == 404
+
+
+def test_pois_carry_mapped_contacts(client):
+    rows = client.get("/api/pois", params={"south": 18.5, "west": 73.83, "north": 18.56, "east": 73.9,
+                                           "categories": "hospital", "limit": 2000}).json()
+    assert any(r["phone"] for r in rows) and any(r["address"] for r in rows)
+
+
+def test_osm_stays_are_real_listings_without_invented_facts(client, db):
+    from sqlalchemy import select
+
+    from app.models import Listing
+
+    stays = list(db.scalars(select(Listing).where(Listing.id.like("osm-%"))))
+    assert len(stays) > 50
+    assert all(not s.is_demo and not s.rooms and s.status == "active" for s in stays)
+    assert any(s.contact_phone for s in stays)
+    body = client.get(f"/api/listings/{stays[0].id}").json()
+    assert body["is_demo"] is False and body["rooms"] == []

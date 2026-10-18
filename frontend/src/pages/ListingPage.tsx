@@ -1,4 +1,4 @@
-import { ArrowLeft, Bookmark, BookmarkCheck, ExternalLink, Flag, Phone, Scale } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, ExternalLink, Flag, Globe, Mail, Phone, Scale, Search } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import {
@@ -9,7 +9,7 @@ import { ListingBadges } from '../components/ResultCard'
 import { EmptyState, ErrorBox, Section, SignBadge, Spinner, Toast } from '../components/ui'
 import { api, ApiError } from '../lib/api'
 import { visitChecklist } from '../lib/checklist'
-import { inr, osmDirections } from '../lib/format'
+import { inr, osmDirections, splitPhones, telHref, webHref } from '../lib/format'
 import { fromSearchParams, hasDestination, toSearchParams } from '../lib/prefs'
 import { COMPARE_MAX, compareStore, savedStore, useIds } from '../lib/storage'
 import type { MatchResult } from '../lib/types'
@@ -129,6 +129,7 @@ export function ListingPage() {
             <b className="text-demo">Demo listing.</b> This stay is fictional and exists to show how Nivasa works. Do not try to contact or visit it.
           </p>
         )}
+        {!l.is_demo && l.description && <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm">{l.description}</p>}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
@@ -153,10 +154,18 @@ export function ListingPage() {
             </div>
             <h2 id="next" className="sr-only">Next steps</h2>
             <div className="flex flex-col gap-2">
-              {l.contact_phone ? (
-                <a className="btn-primary btn min-h-12" href={`tel:${l.contact_phone.replace(/\s/g, '')}`}><Phone className="size-4" aria-hidden />Call {l.contact_name ?? 'the owner'}: {l.contact_phone}</a>
-              ) : (
-                <p className="rounded-2xl bg-surface px-4 py-3 text-sm">{l.is_demo ? 'Demo listings have no contact details.' : 'Contact details have not been provided for this stay yet.'}</p>
+              {splitPhones(l.contact_phone).map((ph, i) => (
+                <a key={ph} className={`btn min-h-12 ${i === 0 ? 'btn-primary' : ''}`} href={telHref(ph)}><Phone className="size-4" aria-hidden />Call {i === 0 && l.contact_name ? l.contact_name : ''} {ph}</a>
+              ))}
+              {l.contact_email && <a className="btn min-h-12" href={`mailto:${l.contact_email}`}><Mail className="size-4" aria-hidden /><span className="truncate">{l.contact_email}</span></a>}
+              {l.contact_website && <a className="btn min-h-12" href={webHref(l.contact_website)} target="_blank" rel="noreferrer"><Globe className="size-4" aria-hidden />Website</a>}
+              {!l.contact_phone && !l.contact_email && !l.contact_website && (
+                <p className="rounded-2xl bg-surface px-4 py-3 text-sm">{l.is_demo ? 'Demo listings have no contact details.' : 'No phone number or email has been provided for this stay yet.'}</p>
+              )}
+              {!l.is_demo && (
+                <a className="btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${l.name} ${l.area} Pune`)}`} target="_blank" rel="noreferrer">
+                  <Search className="size-4" aria-hidden />Find reviews and contacts on Google Maps
+                </a>
               )}
               {directions && (
                 <a className="btn" href={directions.url} target="_blank" rel="noreferrer">

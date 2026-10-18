@@ -104,7 +104,7 @@ def _nearest(ctx: Context, cat: str, here: Point, radius_km: float) -> NearbyPla
     if not hits:
         return None
     d, p = hits[0]
-    return NearbyPlace(name=p.name, distance_km=round(d * ctx.settings.detour_factor, 2), lat=p.lat, lng=p.lng)
+    return NearbyPlace(poi_id=p.id, name=p.name,distance_km=round(d * ctx.settings.detour_factor, 2), lat=p.lat, lng=p.lng)
 
 
 def essentials(listing: Listing, ctx: Context) -> tuple[Essentials, int | None]:

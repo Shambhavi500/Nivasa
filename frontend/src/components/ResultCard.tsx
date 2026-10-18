@@ -21,6 +21,8 @@ export function ListingBadges({ result, meta }: { result: MatchResult; meta: Met
   return (
     <div className="flex flex-wrap gap-1.5">
       {l.is_demo && <span className="badge badge-demo" title="Fictional listing for development">Demo</span>}
+      {l.id.startsWith('osm-') && <span className="badge badge-ok" title="A real place mapped on OpenStreetMap. Rent and rooms are not reported.">Real · OpenStreetMap</span>}
+      {l.contact_phone && !l.is_demo && <span className="badge">Has phone</span>}
       <span className="badge">{meta.stay_types[l.stay_type]}</span>
       <span className="badge">{l.gender ? meta.genders[l.gender] : 'Boys/girls not reported'}</span>
       {l.verification_status === 'visit_verified' && <span className="badge badge-ok">Visit-verified</span>}

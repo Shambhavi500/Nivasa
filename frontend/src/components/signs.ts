@@ -114,6 +114,7 @@ export function stationColours(transit: Transit | null): Map<string, string | nu
 
 export interface NearbyPoint {
   key: string
+  poi_id?: string | null
   sign: string
   name: string | null
   lat: number
@@ -126,11 +127,11 @@ export interface NearbyPoint {
 export function nearbyPoints(r: MatchResult): NearbyPoint[] {
   const pts: NearbyPoint[] = []
   const mess = r.food.find((f) => f.kind === 'mess' && f.lat != null && f.lng != null)
-  if (mess) pts.push({ key: 'mess', sign: 'mess', name: mess.name, lat: mess.lat!, lng: mess.lng!, distance_km: mess.distance_km, best: true })
+  if (mess) pts.push({ key: 'mess', poi_id: mess.poi_id, sign: 'mess', name: mess.name, lat: mess.lat!, lng: mess.lng!, distance_km: mess.distance_km, best: true })
   r.food.filter((f) => f !== mess && f.kind === 'mess' && f.lat != null && f.lng != null).slice(0, 4)
-    .forEach((f, i) => pts.push({ key: `mess-${i}`, sign: 'mess', name: f.name, lat: f.lat!, lng: f.lng!, distance_km: f.distance_km }))
+    .forEach((f, i) => pts.push({ key: `mess-${i}`, poi_id: f.poi_id, sign: 'mess', name: f.name, lat: f.lat!, lng: f.lng!, distance_km: f.distance_km }))
   Object.entries(r.essentials.by_category).forEach(([cat, p]) => {
-    if (p) pts.push({ key: cat, sign: cat, name: p.name, lat: p.lat, lng: p.lng, distance_km: p.distance_km })
+    if (p) pts.push({ key: cat, poi_id: p.poi_id, sign: cat, name: p.name, lat: p.lat, lng: p.lng, distance_km: p.distance_km })
   })
   if (r.nearest_police) pts.push({ key: 'police', sign: 'police', ...r.nearest_police })
   if (r.nearest_hospital) pts.push({ key: 'hospital', sign: 'hospital', ...r.nearest_hospital })

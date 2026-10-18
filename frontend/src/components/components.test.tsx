@@ -1,10 +1,12 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { emptyPreferences } from '../lib/prefs'
+import { closePlace, openPlace } from '../lib/placeSheet'
 import { compareStore } from '../lib/storage'
 import { colleges, makeResult, meta } from '../test/fixtures'
+import { PlaceSheetHost } from './PlaceSheet'
 import { PreferenceForm } from './PreferenceForm'
 import { ResultCard } from './ResultCard'
 import { ScoreRing } from './ui'
@@ -82,5 +84,32 @@ describe('PreferenceForm', () => {
     await userEvent.click(screen.getByRole('button', { name: /Find my stays/ }))
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByText('Pick at least one way to get to college.')).toBeInTheDocument()
+  })
+})
+
+describe('PlaceSheetHost', () => {
+  it('shows a hospital with call, emergency, email and website links, and closes on Escape', async () => {
+    render(<PlaceSheetHost />)
+    act(() => openPlace({
+      id: 'w331500153', category: 'hospital', name: 'Jehangir Hospital', lat: 18.53, lng: 73.877,
+      phone: '+91 20 6681 9966; +91 20 6681 8890', email: 'info@jehangirhospital.com', website: 'https://www.jehangirhospital.com',
+      address: '32 Sassoon Road, Pune', details: { emergency: 'yes', emergency_phone: '+91 88888 81066' }, contact_source: 'official site',
+    }))
+    const dialog = screen.getByRole('dialog', { name: 'Jehangir Hospital' })
+    expect(within(dialog).getByRole('link', { name: /Call \+91 20 6681 9966/ })).toHaveAttribute('href', 'tel:+912066819966')
+    expect(within(dialog).getByRole('link', { name: /Call \+91 20 6681 8890/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: /Emergency: \+91 88888 81066/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: /info@jehangirhospital.com/ })).toHaveAttribute('href', 'mailto:info@jehangirhospital.com')
+    expect(within(dialog).getByText('Emergency department')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('says when a mess has no mapped contact', () => {
+    render(<PlaceSheetHost />)
+    act(() => openPlace({ id: 'n1', category: 'mess', name: 'Kaku Chi Mess', lat: 18.5, lng: 73.8, cuisine: ['maharashtrian'], pure_veg: true }))
+    expect(screen.getByText(/No phone number or email is mapped/)).toBeInTheDocument()
+    expect(screen.getByText('Pure veg')).toBeInTheDocument()
+    act(() => closePlace())
   })
 })

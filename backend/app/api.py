@@ -6,7 +6,7 @@ import secrets
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -88,6 +88,14 @@ def pois(db: DB,
     if cats:
         q = q.where(Poi.category.in_(cats))
     return list(db.scalars(q.limit(limit)))
+
+
+@router.get("/pois/{poi_id}", response_model=PoiOut)
+def poi_detail(poi_id: Annotated[str, Path(max_length=32)], db: DB) -> Poi:
+    poi = db.get(Poi, poi_id)
+    if poi is None:
+        raise HTTPException(404, "Place not found.")
+    return poi
 
 
 @router.post("/search", response_model=SearchResponse)

@@ -1,6 +1,8 @@
-import { Check, Minus, CircleHelp } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Check, ChevronRight, CircleHelp, Minus } from 'lucide-react'
 import { inr, km, scoreBand, toneColor, walkMin } from '../lib/format'
-import type { Listing, MatchResult, Meta } from '../lib/types'
+import { openPlace } from '../lib/placeSheet'
+import type { Listing, MatchResult, Meta, NearbyPlace } from '../lib/types'
 import { Fact, ScoreRing, Section, SignBadge } from './ui'
 
 const BASIS_LABEL: Record<string, string> = {
@@ -119,6 +121,12 @@ export function FoodSection({ r, wanted }: { r: MatchResult; wanted: string[] })
               Pure veg: {f.pure_veg == null ? 'not reported' : f.pure_veg ? 'yes' : 'no'} · Jain: {f.jain == null ? 'not reported' : f.jain ? 'yes' : 'no'}
               {f.opening_hours ? ` · Hours: ${f.opening_hours}` : ''}
             </p>
+            {f.poi_id && f.lat != null && f.lng != null && (
+              <button type="button" className="btn btn-sm self-start"
+                onClick={() => openPlace({ id: f.poi_id!, category: 'mess', name: f.name, lat: f.lat!, lng: f.lng!, partial: true })}>
+                Details and contact<ChevronRight className="size-3.5" aria-hidden />
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -156,13 +164,15 @@ export function EssentialsSection({ r, meta }: { r: MatchResult; meta: Meta }) {
         {Object.entries(meta.essentials).map(([k, label]) => {
           const p = r.essentials.by_category[k]
           return (
-            <li key={k} className={`flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 ${p ? '' : 'opacity-60'}`}>
-              <SignBadge kind={k} small />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-ink">{label}</p>
-                <p className="truncate text-xs text-muted">{p ? p.name ?? 'Unnamed' : 'None mapped within 1.5 km'}</p>
-              </div>
-              {p && <span className="num shrink-0 text-right text-xs"><b className="block text-sm">{walkMin(p.distance_km)} min</b><span className="text-muted">{km(p.distance_km)}</span></span>}
+            <li key={k}>
+              <PlaceRow kind={k} place={p} className={p ? '' : 'opacity-60'}>
+                <SignBadge kind={k} small />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">{label}</p>
+                  <p className="truncate text-xs text-muted">{p ? p.name ?? 'Unnamed' : 'None mapped within 1.5 km'}</p>
+                </div>
+                {p && <span className="num shrink-0 text-right text-xs"><b className="block text-sm">{walkMin(p.distance_km)} min</b><span className="text-muted">{km(p.distance_km)}</span></span>}
+              </PlaceRow>
             </li>
           )
         })}
@@ -179,13 +189,13 @@ export function SafetySection({ r, meta }: { r: MatchResult; meta: Meta }) {
     <Section title="Safety and house rules" id="safety" sign="police">
       <div className="grid gap-1.5 sm:grid-cols-2">
         {([['police', 'Nearest police station', r.nearest_police], ['hospital', 'Nearest hospital or clinic', r.nearest_hospital]] as const).map(([k, label, p]) => (
-          <div key={k} className="flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5">
+          <PlaceRow key={k} kind={k} place={p}>
             <SignBadge kind={k} small />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-ink">{label}</p>
               <p className="truncate text-xs text-muted"><Fact value={p ? `${km(p.distance_km)}${p.name ? ` · ${p.name}` : ''}` : null} unknown="None mapped within 3 km" /></p>
             </div>
-          </div>
+          </PlaceRow>
         ))}
       </div>
       <dl className="text-sm">
@@ -201,3 +211,16 @@ export function SafetySection({ r, meta }: { r: MatchResult; meta: Meta }) {
   )
 }
 
+
+/** A nearby-place row. When the place is on the map it becomes a button that opens its details card. */
+function PlaceRow({ kind, place, className = '', children }: { kind: string; place: NearbyPlace | null | undefined; className?: string; children: ReactNode }) {
+  const base = `flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 text-left ${className}`
+  if (!place?.poi_id) return <div className={base}>{children}</div>
+  const id = place.poi_id
+  return (
+    <button type="button" className={`${base} transition-colors hover:bg-surface-3`} aria-label={`${place.name ?? kind}: details and contact`}
+      onClick={() => openPlace({ id, category: kind, name: place.name, lat: place.lat, lng: place.lng, partial: true })}>
+      {children}<ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+    </button>
+  )
+}

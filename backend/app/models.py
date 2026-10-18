@@ -67,6 +67,7 @@ class Listing(Base):
     contact_name: Mapped[str | None] = mapped_column(String(120))
     contact_phone: Mapped[str | None] = mapped_column(String(32))
     contact_email: Mapped[str | None] = mapped_column(String(200))
+    contact_website: Mapped[str | None] = mapped_column(String(300))
 
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(16), default="active")  # active | pending | rejected
@@ -106,6 +107,13 @@ class Poi(Base):
     pure_veg: Mapped[bool | None] = mapped_column(Boolean)
     jain: Mapped[bool | None] = mapped_column(Boolean)
     opening_hours: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(120))
+    email: Mapped[str | None] = mapped_column(String(200))
+    website: Mapped[str | None] = mapped_column(String(300))
+    address: Mapped[str | None] = mapped_column(String(300))
+    # Extra mapped facts (speciality, emergency, operator, emergency_phone, ...); missing keys are unknown.
+    details: Mapped[dict[str, str] | None] = mapped_column(JSON)
+    contact_source: Mapped[str | None] = mapped_column(String(300))
 
 
 class MetroStation(Base):

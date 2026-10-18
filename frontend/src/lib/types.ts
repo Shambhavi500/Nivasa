@@ -75,6 +75,7 @@ export interface Listing {
   contact_name: string | null
   contact_phone: string | null
   contact_email: string | null
+  contact_website?: string | null
   is_demo: boolean
   verification_status: 'unverified' | 'owner_submitted' | 'visit_verified'
   verified_on: string | null
@@ -145,6 +146,7 @@ export interface FoodOption {
 }
 
 export interface NearbyPlace {
+  poi_id?: string | null
   name: string | null
   distance_km: number
   lat: number
@@ -224,6 +226,13 @@ export interface Poi {
   pure_veg?: boolean | null
   jain?: boolean | null
   opening_hours?: string | null
+  phone?: string | null
+  email?: string | null
+  website?: string | null
+  address?: string | null
+  /** Extra mapped facts: speciality, emergency, operator, emergency_phone, name_mr ... Missing keys are unknown. */
+  details?: Record<string, string> | null
+  contact_source?: string | null
 }
 
 export interface Transit {

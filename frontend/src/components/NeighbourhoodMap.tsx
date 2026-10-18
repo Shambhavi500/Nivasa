@@ -2,6 +2,7 @@ import L from 'leaflet'
 import { useEffect, useMemo } from 'react'
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { km, walkMin } from '../lib/format'
+import { openPlace } from '../lib/placeSheet'
 import type { MatchResult } from '../lib/types'
 import { useTransit } from '../lib/useReference'
 import { TILE_ATTRIBUTION, TILE_URL } from './mapConfig'
@@ -45,8 +46,9 @@ export function NeighbourhoodMap({ r, destination }: { r: MatchResult; destinati
             </Marker>
           ))}
           {points.map((p) => (
-            <Marker key={p.key} position={[p.lat, p.lng]} icon={placeIcon(p.sign, p.best ? 30 : 24, p.best)}>
-              <Tooltip direction="top">{signFor(p.sign).label}{p.name ? `: ${p.name}` : ''} · {km(p.distance_km)}</Tooltip>
+            <Marker key={p.key} position={[p.lat, p.lng]} icon={placeIcon(p.sign, p.best ? 30 : 24, p.best)}
+              eventHandlers={{ click: () => p.poi_id && openPlace({ id: p.poi_id, category: p.sign, name: p.name, lat: p.lat, lng: p.lng, partial: true }) }}>
+              <Tooltip direction="top">{signFor(p.sign).label}{p.name ? `: ${p.name}` : ''} · {km(p.distance_km)}{p.poi_id ? ' · click for details' : ''}</Tooltip>
             </Marker>
           ))}
           <Marker position={[l.lat, l.lng]} icon={stayIcon(l.stay_type, r.score, true)} zIndexOffset={1000}>

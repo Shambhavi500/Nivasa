@@ -2,6 +2,7 @@ import { Menu, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { compareStore, savedStore, useIds } from '../lib/storage'
+import { PlaceSheetHost } from './PlaceSheet'
 
 function Logo() {
   return (
@@ -52,6 +53,7 @@ export function Layout() {
       <main id="main" className={fullBleed ? 'min-h-0 flex-1' : 'flex-1'}>
         <Outlet />
       </main>
+      <PlaceSheetHost />
       {!fullBleed && (
         <footer className="border-t border-line">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-[13px] text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">

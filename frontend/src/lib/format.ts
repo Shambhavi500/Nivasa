@@ -31,3 +31,9 @@ export function osmDirections(from: { lat: number; lng: number }, to: { lat: num
   const [engine, label] = mode === 'walk' ? ['fossgis_osrm_foot', 'Walking route'] : mode === 'cycle' ? ['fossgis_osrm_bike', 'Cycling route'] : ['fossgis_osrm_car', 'Road route']
   return { url: `https://www.openstreetmap.org/directions?engine=${engine}&route=${from.lat}%2C${from.lng}%3B${to.lat}%2C${to.lng}`, label }
 }
+
+/** OSM stores several numbers in one tag, separated by ";" or ",". */
+export const splitPhones = (s: string | null | undefined) => (s ? s.split(/[;,/]/).map((p) => p.trim()).filter(Boolean) : [])
+export const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, '')}`
+export const webHref = (w: string) => (/^https?:\/\//i.test(w) ? w : `https://${w}`)
+export const webLabel = (w: string) => w.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '')
