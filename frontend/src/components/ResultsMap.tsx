@@ -7,7 +7,7 @@ import { HIDDEN_REASON_LABELS, inr, toneColor } from '../lib/format'
 import type { HiddenListing, MatchResult, Poi, ResolvedDestination, Transit } from '../lib/types'
 import { useTransit } from '../lib/useReference'
 import { TILE_ATTRIBUTION, TILE_URL } from './mapConfig'
-import { destIcon, ESSENTIAL_KEYS, metroIcon, placeIcon, SAFETY_KEYS, signFor, stationColours, stayIcon } from './signs'
+import { destIcon, ESSENTIAL_KEYS, metroIcon, placeIcon, SAFETY_KEYS, signFor, stationColours, stayDotIcon, stayIcon } from './signs'
 import { Glyph } from './ui'
 
 // Colours are applied through CSS classes (see index.css) so they follow the light/dark theme.
@@ -101,6 +101,38 @@ function ZoomHint({ zoom }: { zoom: number }) {
   )
 }
 
+// The best stays always get a score pin. The rest are dots until the map is zoomed in far enough to
+// tell neighbouring pins apart, so 150 results near a central college don't pile up.
+const PINNED = 40
+const ALL_PINS_ZOOM = 15
+
+function useZoom(): number {
+  const map = useMap()
+  const [zoom, setZoom] = useState(map.getZoom())
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+  return zoom
+}
+
+function StayMarkers({ ordered, selectedId, onSelect }: { ordered: MatchResult[]; selectedId: string | null; onSelect: (id: string) => void }) {
+  const zoom = useZoom()
+  return ordered.map((r, i) => {
+    const isSelected = r.listing.id === selectedId
+    const pin = isSelected || zoom >= ALL_PINS_ZOOM || i >= ordered.length - PINNED
+    return (
+      <Marker key={r.listing.id} position={[r.listing.lat, r.listing.lng]}
+        icon={pin ? stayIcon(r.listing.stay_type, r.score, isSelected) : stayDotIcon(r.score)}
+        zIndexOffset={isSelected ? 1000 : pin ? 0 : -100} title={`${r.listing.name}, score ${r.score ?? 'n/a'}`}
+        eventHandlers={{ click: () => onSelect(r.listing.id) }}>
+        <Tooltip direction="top">
+          <b className="text-inherit">{r.listing.name}</b>{r.listing.is_demo ? ' (demo)' : ''}<br />
+          {r.cost.all_in_known != null ? `${inr(r.cost.all_in_known)} all-in` : 'Rent not reported'}
+          {r.commute.recommended ? ` · ${r.commute.recommended.minutes} min` : ''}
+        </Tooltip>
+      </Marker>
+    )
+  })
+}
+
 type LayerKey = 'metro' | 'messes' | 'essentials' | 'safety' | 'hidden'
 const LAYERS: [LayerKey, string, string][] = [
   ['metro', 'Metro', 'metro'], ['messes', 'Messes', 'mess'], ['essentials', 'Daily needs', 'grocery'],
@@ -172,32 +204,23 @@ export function ResultsMap({ destination, results, hidden, selectedId, onSelect,
             </Marker>
           </>
         )}
-        {ordered.map((r) => (
-          <Marker key={r.listing.id} position={[r.listing.lat, r.listing.lng]} icon={stayIcon(r.listing.stay_type, r.score, r.listing.id === selectedId)}
-            zIndexOffset={r.listing.id === selectedId ? 1000 : 0} title={`${r.listing.name}, score ${r.score ?? 'n/a'}`}
-            eventHandlers={{ click: () => onSelect(r.listing.id) }}>
-            <Tooltip direction="top">
-              <b className="text-inherit">{r.listing.name}</b>{r.listing.is_demo ? ' (demo)' : ''}<br />
-              {r.cost.all_in_known != null ? `${inr(r.cost.all_in_known)} all-in` : 'Rent not reported'}
-              {r.commute.recommended ? ` · ${r.commute.recommended.minutes} min` : ''}
-            </Tooltip>
-          </Marker>
-        ))}
+        <StayMarkers ordered={ordered} selectedId={selectedId} onSelect={onSelect} />
         <Marker position={[destination.lat, destination.lng]} icon={destIcon} zIndexOffset={2000} title={destination.label}>
           <Tooltip permanent direction="bottom" className="nv-tip-quiet">{destination.short_label}</Tooltip>
         </Marker>
       </MapContainer>
 
-      <div ref={panel} className="absolute left-3 right-3 top-3 z-[400] flex flex-col gap-2.5 rounded-2xl bg-surface p-3 shadow-[0_2px_12px_rgb(0_0_0/0.18)] sm:bottom-6 sm:right-auto sm:top-auto sm:max-w-[30rem]">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Map layers">
+      {/* On phones the panel is one row of layer chips that scrolls sideways; the colour key needs more room. */}
+      <div ref={panel} className="absolute left-2 right-2 top-2 z-[400] flex flex-col gap-2.5 rounded-2xl bg-surface p-1.5 shadow-[0_2px_12px_rgb(0_0_0/0.18)] sm:bottom-6 sm:left-3 sm:right-auto sm:top-auto sm:max-w-[30rem] sm:p-3">
+        <div className="flex gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible" role="group" aria-label="Map layers">
           {LAYERS.map(([k, label, sign]) => (
-            <button key={k} type="button" className="chip min-h-8 px-3 text-[13px]" aria-pressed={layers[k]}
+            <button key={k} type="button" className="chip min-h-8 shrink-0 px-3 text-[13px]" aria-pressed={layers[k]}
               onClick={() => setLayers((v) => ({ ...v, [k]: !v[k] }))}>
               {sign ? <Glyph kind={sign} size={14} tinted={!layers[k]} /> : <span className="size-2.5 rounded-full bg-[var(--pin-weak)]" aria-hidden />}{label}
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted sm:flex">
           <span className="font-semibold text-ink">Fit</span>
           {(['great', 'good', 'fair', 'weak'] as const).map((t) => (
             <span key={t} className="inline-flex items-center gap-1"><span className="h-2.5 w-4 rounded-full" style={{ background: toneColor[t] }} />{t[0].toUpperCase() + t.slice(1)}</span>

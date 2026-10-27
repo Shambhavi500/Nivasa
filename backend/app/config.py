@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(BACKEND_DIR / 'nivasa.db').as_posix()}"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
 
-    # Demo listings are fictional. They are shown (and labelled) by default in development only.
-    include_demo_listings: bool = True
+    # Demo listings are fictional and hidden by default; real listings come from OpenStreetMap and submissions.
+    include_demo_listings: bool = False
 
     # Admin endpoints (reviewing submitted listings) are disabled unless a key is set.
     admin_api_key: str | None = None

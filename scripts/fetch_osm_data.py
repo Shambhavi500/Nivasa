@@ -20,6 +20,7 @@ Only the standard library is used, so no virtualenv is needed.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import time
@@ -276,7 +277,28 @@ def fetch_stays() -> list[dict]:
                     "internet_access": t.get("internet_access"), "air_conditioning": t.get("air_conditioning"),
                     "campus": t.get("amenity") in ("college", "university") or t.get("building") == "dormitory",
                     **contact(t)})
+    time.sleep(2)
+    places = fetch_places()
+    for s in out:
+        s["locality"] = nearest_place(places, s["lat"], s["lng"])
     return sorted(out, key=lambda s: s["name"].lower())
+
+
+def fetch_places() -> list[tuple[str, float, float]]:
+    """Named suburbs, neighbourhoods and villages, used to say which part of Pune a stay is in."""
+    q = f"""[out:json][timeout:120];
+    node["place"~"^(suburb|neighbourhood|quarter|village|town)$"]["name"]({BBOX});
+    out;"""
+    return [((el["tags"].get("name:en") or el["tags"]["name"]).strip(), el["lat"], el["lon"]) for el in overpass(q)]
+
+
+def nearest_place(places: list[tuple[str, float, float]], lat: float, lng: float, max_km: float = 3.0) -> str | None:
+    best, best_km = None, max_km
+    for name, plat, plng in places:
+        km = 111.2 * math.hypot(plat - lat, (plng - lng) * math.cos(math.radians(lat)))
+        if km < best_km:
+            best, best_km = name, km
+    return best
 
 
 def write(name: str, payload: dict) -> None:

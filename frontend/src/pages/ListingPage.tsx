@@ -113,7 +113,7 @@ export function ListingPage() {
   const directions = destPoint ? osmDirections(l, destPoint, result.commute.recommended?.mode) : null
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-16 pt-5 sm:px-6">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-28 pt-5 sm:px-6 lg:pb-16">
       <Link to={back} className="btn-ghost btn -ml-3 self-start"><ArrowLeft className="size-4" aria-hidden />Back to results</Link>
       <header className="flex flex-col gap-3">
         <ListingBadges result={result} meta={meta} />
@@ -129,7 +129,7 @@ export function ListingPage() {
             <b className="text-demo">Demo listing.</b> This stay is fictional and exists to show how Nivasa works. Do not try to contact or visit it.
           </p>
         )}
-        {!l.is_demo && l.description && <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm">{l.description}</p>}
+        {!l.is_demo && l.description && <p className="rounded-2xl bg-surface px-4 py-3 text-sm">{l.description}</p>}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
@@ -195,6 +195,21 @@ export function ListingPage() {
             <ReportForm listingId={id} />
           </Section>
         </aside>
+      </div>
+      {/* On phones the next-step card sits below every section, so the main actions stay pinned to the bottom. */}
+      <div className="fixed inset-x-0 bottom-0 z-[700] flex items-center gap-2 border-t border-line bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="num truncate text-[15px] font-extrabold text-ink">{result.cost.all_in_known != null ? `${inr(result.cost.all_in_known)}/mo` : 'Rent unknown'}</p>
+          {result.commute.recommended && <p className="truncate text-xs text-muted">{result.commute.recommended.minutes} min to {destName}</p>}
+        </div>
+        <button className="btn btn-icon min-h-12 shrink-0" aria-pressed={saved} onClick={() => { savedStore.toggle(id); setNotice(saved ? 'Removed from saved' : 'Saved') }}>
+          {saved ? <BookmarkCheck className="size-5" aria-hidden /> : <Bookmark className="size-5" aria-hidden />}<span className="sr-only">{saved ? 'Saved' : 'Save'}</span>
+        </button>
+        {l.contact_phone ? (
+          <a className="btn-primary btn min-h-12 shrink-0" href={`tel:${l.contact_phone.replace(/\s/g, '')}`}><Phone className="size-4" aria-hidden />Call</a>
+        ) : directions && (
+          <a className="btn-primary btn min-h-12 shrink-0" href={directions.url} target="_blank" rel="noreferrer"><ExternalLink className="size-4" aria-hidden />Directions</a>
+        )}
       </div>
       <Toast message={notice} />
     </div>

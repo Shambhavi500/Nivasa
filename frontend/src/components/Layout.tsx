@@ -60,7 +60,7 @@ export function Layout() {
             <span className="flex items-center gap-2"><b className="font-extrabold tracking-[-0.03em]">nivasa</b> Built for students moving to Pune.</span>
             <span>
               Map data © <a className="underline underline-offset-2 hover:text-ink" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>.
-              {' '}Commute times and costs are estimates. Listings marked Demo are fictional.
+              {' '}Commute times and costs are estimates. Stays come from OpenStreetMap, Overture Maps and owner submissions.
             </span>
           </div>
         </footer>

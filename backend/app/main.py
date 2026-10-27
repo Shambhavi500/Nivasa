@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api import router
 from app.config import get_settings
@@ -21,6 +22,8 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type", "X-Admin-Key"])
+    # A search over every stay in the region is about a megabyte of JSON; compressed it is a fraction of that.
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.include_router(router)
     return app
 

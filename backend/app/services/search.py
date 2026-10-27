@@ -12,7 +12,7 @@ from app.services.matching import budget_needed, evaluate
 from app.services.routing import road_distances
 
 DATA_NOTICE = ("Commute times and costs are estimates. Shops, messes, colleges and metro data come from "
-               "OpenStreetMap and may be incomplete. Listings marked Demo are fictional.")
+               "OpenStreetMap and may be incomplete. Stays from OpenStreetMap and Overture Maps have no rent or room details.")
 
 
 def resolve_destination(db: Session, d: Destination) -> ResolvedDestination:

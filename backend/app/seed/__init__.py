@@ -1,22 +1,22 @@
 """Load reference data (colleges, OSM snapshot) and demo listings into the database.
 
 Reference tables are replaced on every run. Demo listings and the hostels/PGs
-imported from OpenStreetMap (ids ``osm-...``) are replaced; every other real
-listing (submitted through the site) is never touched.
+imported from OpenStreetMap and Overture Maps (ids ``osm-...``/``ovt-...``) are
+replaced; every other real listing (submitted through the site) is never touched.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_
 from sqlalchemy.orm import Session
 
 from app.models import College, DataSnapshot, Listing, MetroLine, MetroStation, MetroStop, Poi, RoomOption
-from app.services.geo import Point, haversine_km
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -60,71 +60,6 @@ def _apply_hospital_contacts(rows: dict[str, Poi]) -> int:
             poi.contact_source = f"Checked {data['checked_on']} against {how}: {h['source_url']}"
             applied += 1
     return applied
-
-
-STAY_PG = re.compile(r"\b(p\.?g\.?|pgs|paying guest|co-?living|zolo|stanza)\b", re.IGNORECASE)
-STAY_GIRLS = re.compile(r"\b(girls?'?|ladies|women'?s?|womens|mahila)\b", re.IGNORECASE)
-STAY_BOYS = re.compile(r"\b(boys?'?|gents|men'?s?)\b", re.IGNORECASE)
-STAY_COED = re.compile(r"\b(co-?ed|unisex|men and women|boys and girls|boys & girls)\b", re.IGNORECASE)
-# OSM names that matched "hostel"/"PG" but are not a place to live (PG = power grid on transmission lines).
-NOT_A_STAY = re.compile(r"\b(\d+\s*kv|demolished|office|security|club house|road|cricket|academy|dharm?ashala|bung?low|"
-                        r"asram|ashram|mess|canteen)\b", re.IGNORECASE)
-# Bare campus building codes ("L-3", "West G", "O Building") tell a student nothing.
-BUILDING_CODE = re.compile(
-    r"^([a-z]{1,2}[\s-]?\d{0,3}|(west|east|north|south)\s\w|\w\s(building|block)|(bu?i?lding|block|wing)\s*\w{0,3})$",
-    re.IGNORECASE)
-STAY_CAMPUS = re.compile(r"\b(hostel\s*(no\.?|number)?\s*\d+|block|wing|hall of residence|iiser|coep|symbiosis|mit|vit|i2it|"
-                         r"isquareit|diat|nda|afmc|college|university|institute|research)\b", re.IGNORECASE)
-
-
-def seed_osm_stays(db: Session) -> int:
-    """Real hostels and PGs mapped on OpenStreetMap, as listings with only the facts OSM has.
-
-    Rent, rooms and rules are not on OSM, so they stay unknown and the listing says to call first.
-    """
-    data = _load("osm_stays.json")
-    db.execute(delete(Listing).where(Listing.id.like("osm-%")))
-    db.flush()  # the session does not autoflush, and the colleges were just replaced
-    colleges = list(db.scalars(select(College)))
-    seen: list[tuple[str, float, float]] = []
-    count = 0
-    for s in data["items"]:
-        key = s["name"].lower()
-        # OSM sometimes maps one stay twice (a node and a building). Keep one per name per ~150 m.
-        if any(n == key and abs(la - s["lat"]) < 0.0015 and abs(ln - s["lng"]) < 0.0015 for n, la, ln in seen):
-            continue
-        seen.append((key, s["lat"], s["lng"]))
-        name = s["name"]
-        if NOT_A_STAY.search(name) or BUILDING_CODE.match(name.strip()):
-            continue
-        campus = bool(s.get("campus")) or bool(STAY_CAMPUS.search(name))
-        girls, boys = bool(STAY_GIRLS.search(name)), bool(STAY_BOYS.search(name))
-        gender = "coed" if STAY_COED.search(name) or (girls and boys) else "girls" if girls else "boys" if boys else None
-        here = Point(s["lat"], s["lng"])
-        near = min(colleges, key=lambda c: haversine_km(c, here)) if colleges else None
-        if near and haversine_km(near, here) > 3:
-            near = None
-        suburb = (s.get("suburb") or "").strip(" ,")
-        area = suburb[:1].upper() + suburb[1:] if suburb and suburb.lower() not in ("pune", "pune city") else \
-            (f"Near {near.area}" if near else "Pune")
-        amenities: dict[str, bool] = {}
-        if s.get("internet_access") in ("wlan", "yes", "wifi"):
-            amenities["wifi"] = True
-        if s.get("air_conditioning") == "yes":
-            amenities["ac"] = True
-        note = ("Campus hostel: usually open only to students of that institution. " if campus else "") + \
-            "Mapped on OpenStreetMap. Rent, room types and rules are not reported, so call before visiting."
-        db.add(Listing(
-            id=f"osm-{s['osm']}", name=name, stay_type="pg" if STAY_PG.search(name) else "hostel", gender=gender,
-            area=area[:120], address=s.get("address"), lat=s["lat"], lng=s["lng"], location_precision="exact",
-            description=note, amenities=amenities, safety={}, contact_name=s.get("operator"),
-            contact_phone=s.get("phone"), contact_email=s.get("email"), contact_website=s.get("website"),
-            is_demo=False, status="active", verification_status="unverified",
-            data_source="OpenStreetMap contributors (ODbL)", rooms=[],
-        ))
-        count += 1
-    db.add(DataSnapshot(key="osm_stays", source=data["source"], fetched_at=data["fetched_at"], record_count=count))
-    return count
 
 
 def seed_reference(db: Session) -> dict[str, int]:
@@ -183,9 +118,187 @@ def seed_demo_listings(db: Session) -> int:
     return len(data["items"])
 
 
+OSM_SOURCE = "OpenStreetMap"
+OVERTURE_SOURCE = "Overture Maps"
+
+# Map features caught by the name filters that are not places to stay (power-grid lines, offices, ruins ...).
+_NOT_A_STAY = re.compile(r"\b(kv|demolished|office|security|club house|bunglow|dharm?ashala|cricket|school of design|road)\b",
+                         re.IGNORECASE)
+# Names made only of these words ("Boys Hostel No. 2", "L Block") cannot be told apart or looked up.
+_GENERIC = {"boys", "boy", "girls", "girl", "ladies", "gents", "hostel", "hostle", "hostels", "hostells", "block", "no",
+            "building", "bulding", "new", "old", "main", "wing", "for", "research", "student", "students", "hall", "west",
+            "east", "pg", "in", "pune", "and"}
+_PG = re.compile(r"\b(p\.?g\.?|pgs|paying guest|co-?living|zolo|stanza|oyo life|living|homes|rooms|studio)\b", re.IGNORECASE)
+_COED = re.compile(r"\b(unisex|co-?ed|men and women|ladies (and|&) gents|boys (and|&) girls)\b", re.IGNORECASE)
+_GIRLS = re.compile(r"\b(girls?|girl's|ladies|women'?s?|womens|kanya|her)\b", re.IGNORECASE)
+_BOYS = re.compile(r"\b(boys?|boy's|boyes|gents|men'?s?|mens)\b", re.IGNORECASE)
+_CAMPUS = re.compile(r"\b(college|institute|university|iiser|coep|symbiosis|sinhgad|medical|fergusson|wadia|mit|jspm|pccoe"
+                     r"|pict|i2it|isquareit|nicmar|ftii|ncl|diat|raisoni|ayurveda|bjs?|mvpm|zeal|ari|hall of residence"
+                     r"|afmc|iricen|gokhale|sndt|bharati|vishwakarma|vit|d\s?y\s?patil|nursing|cadets?)\b",
+                     re.IGNORECASE)
+# Words that say nothing about which stay it is, ignored when matching names across sources.
+_NAME_NOISE = {"pune", "the", "and", "in", "for", "pg", "hostel", "hostels", "boys", "girls", "ladies", "gents", "co",
+               "living", "coliving", "house", "near", "services", "service", "accommodation"}
+_SAME_PLACE_KM = 0.3
+# Meta and Microsoft sometimes place the same named stay a short way apart.
+_SAME_NAME_KM = 1.5
+
+
+def _is_generic(name: str) -> bool:
+    words = re.findall(r"[^\W\d_]+", name.lower())
+    return all(w in _GENERIC or len(w) == 1 for w in words)
+
+
+def _gender(text: str) -> str | None:
+    if _COED.search(text):
+        return "coed"
+    girls, boys = bool(_GIRLS.search(text)), bool(_BOYS.search(text))
+    return "coed" if girls and boys else "girls" if girls else "boys" if boys else None
+
+
+def _tri(value: str | None, yes: tuple[str, ...]) -> bool | None:
+    if not value:
+        return None
+    return True if value.lower() in yes else False if value.lower() == "no" else None
+
+
+def _words(name: str) -> list[str]:
+    return re.findall(r"[^\W_]+", re.sub(r"[.'’]", "", name.lower()))  # "B.J." -> "bj", "Girl's" -> "girls"
+
+
+def _name_key(name: str) -> set[str]:
+    return {w for w in _words(name) if w not in _NAME_NOISE}
+
+
+def _digits(phone: str) -> str:
+    return re.sub(r"\D", "", phone)[-10:]
+
+
+def _km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
+    return 111.2 * math.hypot(a_lat - b_lat, (a_lng - b_lng) * math.cos(math.radians(a_lat)))
+
+
+def _same_stay(a: Listing, name: str, lat: float, lng: float, phone: str | None = None,
+               shared_phones: frozenset[str] = frozenset()) -> bool:
+    """Whether a new record describes stay ``a``.
+
+    Boys' and girls' blocks are never the same stay. Otherwise: the same name within 1.5 km, or within
+    300 m either the same phone (unless it is a call centre shared by several stays) or mostly the same
+    distinctive words in the name ("Zolo Highrollers" and "Zolo Highrollers - PG in Hinjewadi").
+    """
+    gender = _gender(name)
+    if a.gender and gender and a.gender != gender:
+        return False
+    km = _km(a.lat, a.lng, lat, lng)
+    if km <= _SAME_NAME_KM and _words(a.name) == _words(name) and not _is_generic(name):
+        return True
+    if km > _SAME_PLACE_KM:
+        return False
+    if phone and a.contact_phone and _digits(phone) == _digits(a.contact_phone) and _digits(phone) not in shared_phones:
+        return True
+    ka, kb = _name_key(a.name), _name_key(name)
+    if not ka or not kb:
+        return False
+    small = min(len(ka), len(kb))
+    return len(ka & kb) / len(ka | kb) >= 0.6 or (small >= 2 and len(ka & kb) == small)
+
+
+def _stay(id: str, name: str, lat: float, lng: float, area: str | None, notes: list[str], source: str,
+          hints: str = "", **facts) -> Listing:
+    if _CAMPUS.search(name):
+        notes.append("Looks like an institute hostel, usually open only to that institute's students.")
+    text = f"{name} {hints}"
+    return Listing(
+        id=id, name=name, stay_type="pg" if _PG.search(text) else "hostel", gender=_gender(text),
+        area=(area or "Pune").strip(" ,"), lat=lat, lng=lng, location_precision="exact", description=" ".join(notes),
+        safety={}, is_demo=False, status="active", verification_status="unverified", data_source=source, rooms=[],
+        **{"amenities": {}, **facts},
+    )
+
+
+def osm_listings(items: list[dict]) -> list[Listing]:
+    """Real stays mapped on OpenStreetMap. OSM has no rent, rooms or house rules, so those stay unknown."""
+    out: list[Listing] = []
+    for s in items:
+        name = s["name"]
+        if _NOT_A_STAY.search(name) or _is_generic(name):
+            continue
+        # The same building is sometimes mapped as both a node and an outline, or twice under spellings.
+        if any(_same_stay(l, name, s["lat"], s["lng"]) for l in out):
+            continue
+        amenities = {k: v for k, v in (("wifi", _tri(s.get("internet_access"), ("yes", "wlan", "wifi"))),
+                                       ("ac", _tri(s.get("air_conditioning"), ("yes",)))) if v is not None}
+        notes = [f"Mapped on OpenStreetMap ({s['osm']}). Rent, rooms and rules are not on the map: "
+                 "call or visit to confirm before deciding."]
+        if s.get("campus") and not _CAMPUS.search(name):
+            notes.append("Looks like an institute hostel, usually open only to that institute's students.")
+        if s.get("operator"):
+            notes.append(f"Operator: {s['operator']}.")
+        suburb = s.get("suburb") if (s.get("suburb") or "").lower() not in ("", "pune") else None
+        out.append(_stay(f"osm-{s['osm']}", name, s["lat"], s["lng"], suburb or s.get("locality"), notes, OSM_SOURCE,
+                         address=s.get("address"), amenities=amenities, contact_phone=s.get("phone"),
+                         contact_email=s.get("email"), contact_website=s.get("website")))
+    return out
+
+
+def overture_listings(items: list[dict], known: list[Listing]) -> tuple[list[Listing], int]:
+    """Stays from Overture Maps Places that are not already in ``known``.
+
+    A stay already known (usually from OpenStreetMap) gains Overture's phone or email if it has none.
+    Returns the new listings and how many known ones gained a phone number.
+    """
+    out: list[Listing] = []
+    enriched = 0
+    names_by_phone: dict[str, set[str]] = {}
+    for s in items:
+        if s.get("phone"):
+            names_by_phone.setdefault(_digits(s["phone"]), set()).add(s["name"].lower())
+    shared = frozenset(p for p, names in names_by_phone.items() if len(names) >= 3)
+    for s in sorted(items, key=lambda s: -s.get("confidence", 0)):
+        name = s["name"]
+        if _NOT_A_STAY.search(name) or _is_generic(name):
+            continue
+        twin = next((l for l in known if _same_stay(l, name, s["lat"], s["lng"], s.get("phone"), shared)), None)
+        if twin is not None:
+            if not twin.contact_phone and s.get("phone"):
+                twin.contact_phone, enriched = s["phone"], enriched + 1
+            if not twin.contact_email and s.get("email"):
+                twin.contact_email = s["email"]
+            if not twin.contact_website and s.get("website"):
+                twin.contact_website = s["website"]
+            continue
+        # Meta and Microsoft often list the same stay; keep the most confident one.
+        if any(_same_stay(l, name, s["lat"], s["lng"], s.get("phone"), shared) for l in out):
+            continue
+        via = " and ".join(x.capitalize() if x.islower() else x for x in s.get("sources") or []) or "its partners"
+        notes = [f"Listed in Overture Maps (from {via}). Rent, rooms and rules are not listed: "
+                 "call or visit to confirm before deciding."]
+        if s.get("tagline"):
+            notes.append(f"Advertised as \"{s['tagline']}\".")
+        out.append(_stay(f"ovt-{s['id'][:16]}", name, s["lat"], s["lng"], s.get("locality"), notes, OVERTURE_SOURCE,
+                         hints=s.get("tagline") or "", address=s.get("address"), contact_phone=s.get("phone"),
+                         contact_email=s.get("email"), contact_website=s.get("website")))
+    return out, enriched
+
+
+def seed_real_listings(db: Session) -> dict[str, int]:
+    osm, ovt = _load("osm_stays.json"), _load("overture_stays.json")
+    # Older seeds labelled OSM stays differently, so match their ids too.
+    db.execute(delete(Listing).where(or_(Listing.data_source.in_([OSM_SOURCE, OVERTURE_SOURCE]),
+                                         Listing.id.like("osm-%"), Listing.id.like("ovt-%"))))
+    from_osm = osm_listings(osm["items"])
+    from_ovt, enriched = overture_listings(ovt["items"], from_osm)
+    db.add_all(from_osm + from_ovt)
+    db.add_all([
+        DataSnapshot(key="osm_stays", source=osm["source"], fetched_at=osm["fetched_at"], record_count=len(from_osm)),
+        DataSnapshot(key="overture_stays", source=ovt["source"], fetched_at=ovt["fetched_at"], record_count=len(from_ovt)),
+    ])
+    return {"osm_listings": len(from_osm), "overture_listings": len(from_ovt), "osm_given_phone": enriched}
+
+
 def seed_all(db: Session, include_demo: bool = True) -> dict[str, int]:
     counts = seed_reference(db)
-    counts["osm_stays"] = seed_osm_stays(db)
+    counts.update(seed_real_listings(db))
     if include_demo:
         counts["demo_listings"] = seed_demo_listings(db)
     else:

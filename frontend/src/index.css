@@ -139,6 +139,9 @@
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; }
   ::selection { background: var(--primary-soft); color: var(--ink); }
+  /* Scrolling stays (wheel, touch, keyboard); only the bars are hidden. */
+  * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; }
 }
 
 /* Cards are flat cream surfaces: no border, no shadow. */
@@ -249,6 +252,10 @@
   border: 5px solid transparent; border-top: 6px solid var(--surface); border-bottom: 0;
 }
 .nv-stay.is-selected { background: var(--ink); color: var(--on-ink); transform: scale(1.15); transform-origin: 50% 100%; }
+.nv-stay-dot {
+  width: 100%; height: 100%; border-radius: 9999px; background: var(--band);
+  border: 2px solid var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+}
 .nv-sign {
   display: grid; place-items: center; width: 100%; height: 100%; border-radius: 9999px;
   background: var(--sign-bg); color: var(--sign-fg); border: 2px solid var(--surface);

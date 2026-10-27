@@ -41,8 +41,7 @@ export function HomePage() {
         </ul>
 
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted">
-          <span className="badge badge-demo">Demo</span>
-          Colleges, metro and shops are real OpenStreetMap data. Listings are examples until verified ones are added.
+          Colleges, metro, shops and over 500 stays are real data for Pune from OpenStreetMap and Overture Maps. Rent and rooms are not on the map, so call or visit to confirm.
         </p>
       </div>
 

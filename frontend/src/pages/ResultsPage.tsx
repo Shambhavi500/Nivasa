@@ -19,6 +19,8 @@ const SORTS: Record<Sort, (a: MatchResult, b: MatchResult) => number> = {
   rent: (a, b) => (a.cost.rent.amount ?? Infinity) - (b.cost.rent.amount ?? Infinity),
 }
 const SORT_LABELS: Record<Sort, string> = { score: 'Best fit', cost: 'Lowest all-in', commute: 'Shortest trip', rent: 'Lowest rent' }
+// A search near a central college matches 150+ stays; render them a page at a time so phones stay smooth.
+const PAGE = 25
 
 const desktopQuery = '(min-width: 1024px)'
 function useIsDesktop(): boolean {
@@ -36,6 +38,7 @@ export function ResultsPage() {
   const ref = useReference()
   const [selected, setSelected] = useState<string | null>(null)
   const [sort, setSort] = useState<Sort>('score')
+  const [page, setPage] = useState({ key: '', n: PAGE })
   const [pane, setPane] = useState<'list' | 'map'>('list')
   // Leaflet must mount at its real size, so on phones the map only exists while its tab is open.
   const isDesktop = useIsDesktop()
@@ -88,6 +91,9 @@ export function ResultsPage() {
 
   const data = state.data
   const sorted = data ? [...data.results].sort(SORTS[sort]) : []
+  // The page resets with every new search or sort, and always reaches the stay picked on the map.
+  const pageKey = `${requestKey}|${sort}`
+  const shown = Math.max(page.key === pageKey ? page.n : PAGE, sorted.findIndex((r) => r.listing.id === selected) + 1)
   const qs = toSearchParams(prefs).toString()
   const serverErrors: PrefErrors = {}
   if (state.error?.status === 422) {
@@ -107,7 +113,7 @@ export function ResultsPage() {
             <SignBadge kind="college" className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-muted">Stays near</p>
-              <h1 className="truncate text-[22px] tracking-[-0.02em]">{data?.destination.label ?? '…'}</h1>
+              <h1 className="line-clamp-2 text-[19px] leading-tight tracking-[-0.02em] sm:text-[22px]">{data?.destination.label ?? '…'}</h1>
               <p className="num mt-0.5 text-[13px] text-muted">{inr(prefs.budget)} {prefs.budget_mode === 'all_in' ? 'all-in' : 'rent'} · {prefs.gender === 'boys' ? "Boys'" : "Girls'"} & co-ed · up to {prefs.max_commute_min} min</p>
             </div>
             <button className="btn shrink-0" onClick={() => setEditing(true)}><SlidersHorizontal className="size-4" aria-hidden />Edit</button>
@@ -152,11 +158,16 @@ export function ResultsPage() {
                   <button className="btn-primary btn" onClick={() => setEditing(true)}>Edit preferences</button>
                 </EmptyState>
               )}
-              {ref.data && sorted.map((r) => (
+              {ref.data && sorted.slice(0, shown).map((r) => (
                 <ResultCard key={r.listing.id} result={r} meta={ref.data.meta} destinationLabel={data.destination.short_label}
                   detailHref={`/listings/${encodeURIComponent(r.listing.id)}?${qs}`} selected={selected === r.listing.id}
                   onSelect={() => setSelected(r.listing.id)} onNotice={setNotice} />
               ))}
+              {sorted.length > shown && (
+                <button className="btn min-h-12" onClick={() => setPage({ key: pageKey, n: shown + PAGE })}>
+                  Show {Math.min(PAGE, sorted.length - shown)} more <span className="text-muted">({sorted.length - shown} left)</span>
+                </button>
+              )}
               <p className="pb-4 text-xs text-muted">{data.data_notice}</p>
             </>
           )}

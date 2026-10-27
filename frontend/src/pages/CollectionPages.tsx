@@ -84,41 +84,47 @@ function CompareTable({ results, meta, qs }: { results: MatchResult[]; meta: Met
     ['Curfew', () => null, null, (r) => r.listing.curfew ?? unknown],
     ['Warnings', () => null, null, (r) => (r.warnings.length ? <ul className="list-disc pl-4 text-xs">{r.warnings.map((w) => <li key={w}>{w}</li>)}</ul> : 'None')],
   ]
+  // The row labels stay put while the stays scroll sideways on a phone.
+  const rowLabel = 'sticky left-0 z-10 w-28 bg-surface-2 p-3 sm:w-40 sm:p-4'
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-[32px] bg-surface-2 text-sm">
-        <thead>
-          <tr>
-            <th className="w-40 p-4" />
-            {results.map((r) => (
-              <th key={r.listing.id} className="p-4 text-left align-top">
-                <span className="text-base font-bold text-ink">{r.listing.name}</span>
-                {r.listing.is_demo && <span className="badge badge-demo ml-1.5">Demo</span>}
-                <div className="text-xs font-normal text-muted">{r.listing.area} · {meta.stay_types[r.listing.stay_type]}</div>
-                <div className="mt-2 flex gap-1.5">
-                  <Link to={`/listings/${encodeURIComponent(r.listing.id)}?${qs}`} className="btn btn-sm">Details</Link>
-                  <button className="btn-ghost btn btn-sm" onClick={() => compareStore.toggle(r.listing.id)}>Remove</button>
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([label, value, dir, render]) => {
-            const vals = results.map(value)
-            const known = vals.filter((v): v is number => v != null)
-            const best = dir && known.length > 1 ? (dir === 'max' ? Math.max(...known) : Math.min(...known)) : null
-            return (
-              <tr key={label}>
-                <th scope="row" className="label border-t border-line p-4 text-left align-top">{label}</th>
-                {results.map((r, i) => (
-                  <td key={r.listing.id} className={`num border-t border-line p-4 align-top text-ink ${best != null && vals[i] === best ? 'bg-good-soft font-bold' : ''}`}>{render(r)}</td>
-                ))}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+    <div className="flex flex-col gap-2">
+      {results.length > 1 && <p className="text-xs text-muted sm:hidden">Swipe the table sideways to see every stay.</p>}
+      <div className="overflow-x-auto rounded-[32px] bg-surface-2">
+        <table className="w-full min-w-[560px] border-separate border-spacing-0 text-sm sm:min-w-[640px]">
+          <thead>
+            <tr>
+              <th className={rowLabel} />
+              {results.map((r) => (
+                <th key={r.listing.id} className="p-4 text-left align-top">
+                  <span className="text-base font-bold text-ink">{r.listing.name}</span>
+                  {r.listing.is_demo && <span className="badge badge-demo ml-1.5">Demo</span>}
+                  <div className="text-xs font-normal text-muted">{r.listing.area} · {meta.stay_types[r.listing.stay_type]}</div>
+                  <div className="mt-2 flex gap-1.5">
+                    <Link to={`/listings/${encodeURIComponent(r.listing.id)}?${qs}`} className="btn btn-sm">Details</Link>
+                    <button className="btn-ghost btn btn-sm" onClick={() => compareStore.toggle(r.listing.id)}>Remove</button>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, value, dir, render]) => {
+              const vals = results.map(value)
+              const known = vals.filter((v): v is number => v != null)
+              // Only mark a winner when the values differ; three stays with "0 of 12" have no best.
+              const best = dir && new Set(known).size > 1 ? (dir === 'max' ? Math.max(...known) : Math.min(...known)) : null
+              return (
+                <tr key={label}>
+                  <th scope="row" className={`label border-t border-line text-left align-top ${rowLabel}`}>{label}</th>
+                  {results.map((r, i) => (
+                    <td key={r.listing.id} className={`num border-t border-line p-3 align-top text-ink sm:p-4 ${best != null && vals[i] === best ? 'bg-good-soft font-bold' : ''}`}>{render(r)}</td>
+                  ))}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

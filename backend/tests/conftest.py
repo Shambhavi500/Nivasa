@@ -13,6 +13,7 @@ os.environ["NIVASA_DATABASE_URL"] = f"sqlite:///{(_TMP / 'test.db').as_posix()}"
 os.environ["NIVASA_ENVIRONMENT"] = "test"
 os.environ["NIVASA_GEOCODER"] = "none"
 os.environ["NIVASA_ROUTING_PROVIDER"] = "estimate"
+os.environ["NIVASA_INCLUDE_DEMO_LISTINGS"] = "true"  # tests rely on the demo listings' full facts
 os.environ.pop("NIVASA_ADMIN_API_KEY", None)
 
 from fastapi.testclient import TestClient  # noqa: E402

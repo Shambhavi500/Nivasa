@@ -48,8 +48,8 @@ export function AboutPage() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-2xl tracking-[-0.02em]">What is not real yet</h2>
-        <p>Listings marked <span className="badge badge-demo">Demo</span> are fictional and exist to show how matching works. They have no contact details, ratings or reviews. Real listings come from owner and student submissions, which are reviewed before they appear. <Link to="/add-listing" className="font-semibold text-ink underline underline-offset-2">Add a listing</Link>.</p>
+        <h2 className="text-2xl tracking-[-0.02em]">Where stays come from</h2>
+        <p>Stays are real hostels and PGs in the Pune region from OpenStreetMap and Overture Maps (which carries business listings from Meta and Microsoft). When both list the same stay it appears once. The maps have their name, location and often a phone number, but not rent, rooms or house rules, so those show as "Not reported" and the Best-Fit score counts them as unknown. Some are institute hostels open only to that institute's students. Owners and students can add full details through submissions, which are reviewed before they appear. <Link to="/add-listing" className="font-semibold text-ink underline underline-offset-2">Add a listing</Link>.</p>
       </section>
 
       <section className="flex flex-col gap-2">

@@ -141,3 +141,48 @@ def test_osm_stays_are_real_listings_without_invented_facts(client, db):
     assert any(s.contact_phone for s in stays)
     body = client.get(f"/api/listings/{stays[0].id}").json()
     assert body["is_demo"] is False and body["rooms"] == []
+
+
+def test_osm_stays_become_real_listings_without_guessed_rent() -> None:
+    from app.seed import osm_listings
+
+    raw = [
+        {"osm": "n1", "name": "Boys Hostel No. 2", "lat": 18.52, "lng": 73.85},
+        {"osm": "n2", "name": "400 KV Chakan-Talegaon(PG)", "lat": 18.7, "lng": 73.8},
+        {"osm": "n3", "name": "Zolo Sparkle", "lat": 18.59, "lng": 73.73, "locality": "Hinjawadi", "phone": "+91 99999 00000"},
+        {"osm": "w3", "name": "Zolo Sparkle", "lat": 18.5901, "lng": 73.7301},
+        {"osm": "n4", "name": "Simran ladies hostel", "lat": 18.6, "lng": 73.8, "internet_access": "wlan"},
+    ]
+    listings = {l.name: l for l in osm_listings(raw)}
+    assert set(listings) == {"Zolo Sparkle", "Simran ladies hostel"}
+    zolo = listings["Zolo Sparkle"]
+    assert (zolo.stay_type, zolo.gender, zolo.area, zolo.contact_phone) == ("pg", None, "Hinjawadi", "+91 99999 00000")
+    assert zolo.rooms == [] and not zolo.is_demo
+    simran = listings["Simran ladies hostel"]
+    assert (simran.stay_type, simran.gender, simran.amenities) == ("hostel", "girls", {"wifi": True})
+
+
+def test_overture_stays_merge_with_osm_and_each_other() -> None:
+    from app.seed import osm_listings, overture_listings
+
+    osm = osm_listings([{"osm": "n1", "name": "Zolo Highrollers", "lat": 18.5900, "lng": 73.7300}])
+    raw = [
+        # the OSM stay again, under a longer name: fills in its phone instead of adding a copy
+        {"id": "a1", "name": "Zolo Highrollers - PG in Hinjewadi Phase 1", "lat": 18.5901, "lng": 73.7301,
+         "phone": "08880108010", "confidence": 0.85, "sources": ["meta"]},
+        # the same Stanza house from two providers, 600 m apart
+        {"id": "b1", "name": "Stanza Living Sidon House", "tagline": "Gents PG in Vadgaon", "lat": 18.46, "lng": 73.82,
+         "phone": "08046007692", "confidence": 0.85, "sources": ["meta"]},
+        {"id": "b2", "name": "Stanza Living Sidon House", "lat": 18.465, "lng": 73.82, "phone": "08046007460",
+         "confidence": 0.6, "sources": ["Microsoft"]},
+        # boys' and girls' blocks next door are different stays
+        {"id": "c1", "name": "Metrocity Boys Hostel", "lat": 18.50, "lng": 73.80, "confidence": 0.8},
+        {"id": "c2", "name": "Metrocity Girls Hostel", "lat": 18.5005, "lng": 73.80, "confidence": 0.8},
+    ]
+    new, enriched = overture_listings(raw, osm)
+    assert enriched == 1 and osm[0].contact_phone == "08880108010"
+    by_name = {l.name: l for l in new}
+    assert sorted(by_name) == ["Metrocity Boys Hostel", "Metrocity Girls Hostel", "Stanza Living Sidon House"]
+    sidon = by_name["Stanza Living Sidon House"]
+    assert (sidon.stay_type, sidon.gender, sidon.data_source) == ("pg", "boys", "Overture Maps")
+    assert "Meta" in sidon.description and "Gents PG in Vadgaon" in sidon.description

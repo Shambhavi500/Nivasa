@@ -69,6 +69,17 @@ export function stayIcon(type: StayType, score: number | null, selected = false)
   }))
 }
 
+/** A lower-ranked stay while zoomed out: a dot in its fit colour, so the top pins stay readable. */
+export function stayDotIcon(score: number | null): L.DivIcon {
+  return cached(`stay-dot-${score}`, () => L.divIcon({
+    className: '',
+    html: `<div class="nv-stay-dot" style="--band:${toneColor[scoreBand(score).tone]}"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    tooltipAnchor: [0, -8],
+  }))
+}
+
 /** A round category sign (mess, shop, pharmacy, police...). */
 export function placeIcon(key: string, size = 24, best = false): L.DivIcon {
   return cached(`place-${key}-${size}-${best}`, () => {
